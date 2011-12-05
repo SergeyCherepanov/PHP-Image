@@ -37,8 +37,9 @@ class Image
     /** @var resource */
     protected $newImage;
     protected $newImagePath       = null;
-    protected $newImageType       = null;
-    protected $newImageQuality    = 75;
+    
+    protected $imageType       = null;
+    protected $quality    = 75;
 
     protected $newImageWidth     = null;
     protected $newImageHeight    = null;
@@ -49,8 +50,6 @@ class Image
     protected $verticalAlign   = 'middle';
 
     protected $_fontDir = 'fonts';
-
-    protected static $abspath    = null;
 
     public function __construct($filePath = null)
     {
@@ -92,6 +91,16 @@ class Image
     public function setNewImagePath($path)
     {
         $this->newImagePath = $path;
+        return $this;
+    }
+
+    /**
+     * @param int $value
+     * @return Image
+     */
+    public function setQuality($value)
+    {
+        $this->quality = $value;
         return $this;
     }
 
@@ -221,7 +230,7 @@ class Image
         // Save or render image
         switch ($type) {
             case self::IMAGE_TYPE_JPG:
-                $quality = (int) $this->newImageQuality;
+                $quality = (int) $this->quality;
                 imagejpeg(
                     $image,
                     ($save ? $this->getNewImagePath() : null),
@@ -229,7 +238,7 @@ class Image
                 );
                 break;
             case self::IMAGE_TYPE_PNG:
-                $quality = (int) $this->newImageQuality % 10;
+                $quality = (int) $this->quality % 10;
                 imagepng(
                     $image,
                     ($save ? $this->getNewImagePath() : null),
@@ -607,28 +616,20 @@ class Image
      */
     public function getImageType()
     {
-        if ($this->newImageType) {
-            return $this->newImageType;
+        if ($this->imageType) {
+            return $this->imageType;
         } else {
             return $this->sourceImageType;
         }
     }
 
     /**
-     * @return null|string
-     */
-    public function getNewImageType()
-    {
-        return $this->newImageType;
-    }
-
-    /**
      * @param string $type
      * @return Image
      */
-    public function setNewImageType($type)
+    public function setImageType($type)
     {
-        $this->newImageType = $type;
+        $this->imageType = $type;
         return $this;
     }
 
