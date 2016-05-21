@@ -3,9 +3,9 @@
 /**
  * GD2 Library
  *
- * @copyright   Copyright 2011 Serhii Cherenov. (https://github.com/SergeyCherepanov)
+ * @copyright   Copyright 2016 Serhii Cherepanov (https://github.com/SergeyCherepanov)
  * @author      Sergey Cherepanov (sergey@cherepanov.org.ua)
- * @date        05.12.11
+ * @license     Creative Commons Attribution 3.0 License
  */
 
 namespace PhpImage;
