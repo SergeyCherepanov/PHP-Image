@@ -37,12 +37,10 @@ class Image
     const VERTICAL_ALIGN_TOP    = 'top';
     const VERTICAL_ALIGN_BOTTOM = 'bottom';
     const VERTICAL_ALIGN_MIDDLE = 'middle';
-
-    const COLOR_TRANSPARENT = 'transparent';
-    const COLOR_ALPHA       = 'alpha'; // alias for transparent
+    const COLOR_TRANSPARENT     = 'transparent';
+    const COLOR_ALPHA           = 'alpha'; // alias for transparent
 
     protected $queue        = [];
-    protected $createEmpty  = false;
     protected $imageChanged = false;
 
     /** @var resource */
@@ -50,31 +48,31 @@ class Image
     protected $sourceImagePath = null;
     protected $sourceImageType = null;
 
-    protected $sourceImageWidth  = null;
-    protected $sourceImageHeight = null;
+    protected $sourceImageWidth  = 1;
+    protected $sourceImageHeight = 1;
 
     /** @var resource */
-    protected $newImage;
-    protected $newImagePath = null;
+    protected $image;
+    protected $imagePath   = null;
+    protected $imageWidth  = null;
+    protected $imageHeight = null;
+    protected $imageType   = null;
+    protected $quality     = 75;
 
-    protected $imageType = null;
-    protected $quality   = 75;
-
-    protected $newImageWidth  = null;
-    protected $newImageHeight = null;
-
-    protected $backgroundColor = self::COLOR_TRANSPARENT;
+    protected $backgroundColor = 'FFFFFF';
     protected $resizeMethod    = self::RESIZE_METHOD_FIT;
     protected $align           = self::ALIGN_CENTER;
     protected $verticalAlign   = self::VERTICAL_ALIGN_MIDDLE;
 
     protected $_fontDir = 'fonts';
 
+    /**
+     * Image constructor.
+     * @param null $filePath
+     */
     public function __construct($filePath = null)
     {
-        if ($filePath) {
-            $this->setSourceImagePath($filePath);
-        }
+        $this->setSourceImagePath($filePath);
     }
 
     /**
@@ -86,11 +84,12 @@ class Image
     }
 
     /**
-     * @param string $path
-     * @return Image
+     * @param null|string $path
+     * @return $this
      */
-    public function setSourceImagePath($path)
+    public function setSourceImagePath($path = null)
     {
+        $this->imageChanged    = true;
         $this->sourceImagePath = $path;
 
         return $this;
@@ -99,18 +98,18 @@ class Image
     /**
      * @return null|string
      */
-    public function getNewImagePath()
+    public function getImagePath()
     {
-        return $this->newImagePath;
+        return $this->imagePath;
     }
 
     /**
      * @param string $path
      * @return Image
      */
-    public function setNewImagePath($path)
+    public function setImagePath($path)
     {
-        $this->newImagePath = $path;
+        $this->imagePath = $path;
 
         return $this;
     }
@@ -121,7 +120,8 @@ class Image
      */
     public function setQuality($value)
     {
-        $this->quality = $value;
+        $this->imageChanged = true;
+        $this->quality      = $value;
 
         return $this;
     }
@@ -147,11 +147,11 @@ class Image
      */
     public function getWidth()
     {
-        if ($this->newImage) {
-            return $this->newImageWidth;
-        } else {
-            return $this->sourceImageWidth;
+        if ($this->image) {
+            return $this->imageWidth;
         }
+
+        return $this->sourceImageWidth;
     }
 
     /**
@@ -159,11 +159,11 @@ class Image
      */
     public function getHeight()
     {
-        if ($this->newImage) {
-            return $this->newImageHeight;
-        } else {
-            return $this->sourceImageHeight;
+        if ($this->image) {
+            return $this->imageHeight;
         }
+
+        return $this->sourceImageHeight;
     }
 
     /**
@@ -180,6 +180,7 @@ class Image
      */
     public function setBackgroundColor($color)
     {
+        $this->imageChanged    = true;
         $this->backgroundColor = $color;
 
         return $this;
@@ -190,16 +191,16 @@ class Image
      * @param int $height
      * @throws Exception
      */
-    public function createEmptyImage($width = 1, $height = 1)
+    public function createEmptyImage($width = null, $height = null)
     {
-        $width  = (int)$width;
-        $height = (int)$height;
+        $width  = (int) $width  ?: $this->sourceImageWidth;
+        $height = (int) $height ?: $this->sourceImageHeight;
         if ($width < 1 || $height < 1) {
             throw new Exception('Please define correct image size.');
         }
         $this->sourceImageWidth  = $width;
         $this->sourceImageHeight = $height;
-        $this->createEmpty       = true;
+        $this->sourceImagePath   = null;
     }
 
     /**
@@ -216,32 +217,11 @@ class Image
     }
 
     /**
-     * @return $this
-     */
-    protected function sendHeaders()
-    {
-        $type = $this->getImageType();
-        switch ($type) {
-            case self::IMAGE_TYPE_JPG:
-                header("content-type: image/jpeg");
-                break;
-            case self::IMAGE_TYPE_PNG:
-                header("content-type: image/png");
-                break;
-            case self::IMAGE_TYPE_GIF:
-                header("content-type: image/gif");
-                break;
-        }
-
-        return $this;
-    }
-
-    /**
      * @throws Exception
-     * @param bool $save
+     * @param string|null $filePath
      * @return Image
      */
-    protected function output($save = false)
+    public function save($filePath = null)
     {
         $this->getSourceImage();
         $this->_applyChanges();
@@ -249,41 +229,35 @@ class Image
         $image = $this->getImage();
         $type  = $this->getImageType();
 
-        if (!is_resource($image)) {
-            throw new Exception('Image resource not defined.');
-        }
-
-        if (!$save) {
-            // Send http headers
-            $this->sendHeaders();
-        } else {
-            if (!$this->getNewImagePath()) {
-                throw new Exception('Destination path not defined.');
+        if ($filePath) {
+            if (!is_dir(dirname($filePath)) || !is_writable(dirname($filePath))) {
+                throw new Exception('Destination dir not found or not writable');
             }
         }
 
         // Save or render image
         switch ($type) {
             case self::IMAGE_TYPE_JPG:
-                $quality = (int)$this->quality;
+            default:
+                $quality = (int) $this->quality;
                 imagejpeg(
                     $image,
-                    ($save ? $this->getNewImagePath() : null),
+                    $filePath,
                     $quality
                 );
                 break;
             case self::IMAGE_TYPE_PNG:
-                $quality = (int)$this->quality % 10;
+                $quality = (int) $this->quality % 10;
                 imagepng(
                     $image,
-                    ($save ? $this->getNewImagePath() : null),
+                    $filePath,
                     $quality
                 );
                 break;
             case self::IMAGE_TYPE_GIF:
                 imagegif(
                     $image,
-                    ($save ? $this->getNewImagePath() : null)
+                    $filePath
                 );
                 break;
         }
@@ -296,21 +270,7 @@ class Image
      */
     public function render()
     {
-        $this->output();
-
-        return $this;
-    }
-
-    /**
-     * @param null $filePath
-     * @return Image
-     */
-    public function save($filePath = null)
-    {
-        if ($filePath) {
-            $this->setNewImagePath($filePath);
-        }
-        $this->output(true);
+        $this->save();
 
         return $this;
     }
@@ -323,9 +283,10 @@ class Image
         if ($this->sourceImage) {
             imagedestroy($this->sourceImage);
         }
-        if ($this->newImage) {
-            imagedestroy($this->newImage);
+        if ($this->image) {
+            imagedestroy($this->image);
         }
+        $this->queue = [];
 
         return $this;
     }
@@ -403,10 +364,10 @@ class Image
         $this->imageChanged = true;
 
         if ($width) {
-            $this->newImageWidth = intval($width);
+            $this->imageWidth = intval($width);
         }
         if ($height) {
-            $this->newImageHeight = intval($height);
+            $this->imageHeight = intval($height);
         }
         if ($method) {
             $this->resizeMethod = $method;
@@ -417,6 +378,8 @@ class Image
     }
 
     /**
+     * Resize action
+     *
      * @return $this
      */
     protected function _resize()
@@ -425,8 +388,8 @@ class Image
         $sourceImageWidth  = $this->sourceImageWidth;
         $sourceImageHeight = $this->sourceImageHeight;
 
-        $newImageWidth  = $this->newImageWidth;
-        $newImageHeight = $this->newImageHeight;
+        $newImageWidth  = $this->imageWidth;
+        $newImageHeight = $this->imageHeight;
 
         $method        = $this->resizeMethod;
         $align         = $this->align;
@@ -435,8 +398,8 @@ class Image
 
 
         if ($sourceImage && ($newImageWidth | $newImageHeight)) {
-            if ($this->newImage) {
-                imagedestroy($this->newImage);
+            if ($this->image) {
+                imagedestroy($this->image);
             }
 
             if (!$newImageHeight) {
@@ -447,8 +410,8 @@ class Image
                 $newImageWidth = ceil($newImageHeight / $sourceImageHeight * $sourceImageWidth);
             }
 
-            $this->newImageWidth  = $newImageWidth;
-            $this->newImageHeight = $newImageHeight;
+            $this->imageWidth  = $newImageWidth;
+            $this->imageHeight = $newImageHeight;
 
             if ($newImageWidth > $sourceImageWidth && $newImageHeight > $sourceImageHeight):
                 //if source image less output image
@@ -469,7 +432,6 @@ class Image
 
                 $fix_width  = (($sourceImageWidth / $newImageWidth * $newImageHeight) >= $sourceImageHeight);
                 $fix_height = (($sourceImageHeight / $newImageHeight * $newImageWidth) >= $sourceImageWidth);
-
 
                 switch ($method):
                     case self::RESIZE_METHOD_FIT:
@@ -527,8 +489,7 @@ class Image
             $this->fill($newImage, $newImageWidth, $newImageHeight, $background);
 
             imagecopyresampled($newImage, $sourceImage, $newImageX, $newImageY, 0, 0, $newWidth, $newHeight, $sourceImageWidth, $sourceImageHeight);
-            $this->newImage = $newImage;
-
+            $this->image = $newImage;
         }
 
         return $this;
@@ -543,7 +504,7 @@ class Image
      * @param string $color
      * @return $this
      */
-    private function fill($resource, $width, $height, $color = self::COLOR_TRANSPARENT)
+    protected function fill($resource, $width, $height, $color = self::COLOR_TRANSPARENT)
     {
         $color = strtolower($color);
         if ($color == self::COLOR_TRANSPARENT || $color == self::COLOR_ALPHA) {
@@ -551,14 +512,16 @@ class Image
             imagealphablending($resource, false);
             $fillColor = imagecolorallocatealpha($resource, 0, 0, 0, 127);
         } else {
-            if (!$color) {
+            if (0 === strpos($color, '#')) {
+                $color = preg_replace('/^#(\w+)$/', '$1', $color);
+            }
+            if (!$color || !in_array(strlen($color), [3, 6])) {
                 $color = 'ffffff';
             }
-            //$fillColor = array();
-            if (strlen($color) < 6) {
+            if (3 == strlen($color)) {
                 $color = preg_replace('/([\w\d]){1}/', '$1$1', substr($color, 0, 3));
             }
-            preg_match_all('/[\w\d]{2}/', substr($color, 0, 6), $color);
+            preg_match_all('/[\w\d]{2}/', $color, $color);
             $fillColor = imagecolorallocate($resource, hexdec($color[0][0]), hexdec($color[0][1]), hexdec($color[0][2]));
 
         }
@@ -577,14 +540,16 @@ class Image
     {
         $this->imageChanged = true;
         $defaults           = [
-            'content'    => '',
-            'fontSize'   => '12',
-            'fontName'   => 'arial.ttf',
-            'color'      => '000000',
-            'lineHeight' => null,
-            'blockWidth' => null,
-            'positionX'  => 0,
-            'positionY'  => 0,
+            'content'       => '',
+            'fontSize'      => '12',
+            'fontName'      => 'arial.ttf',
+            'color'         => '000000',
+            'lineHeight'    => null,
+            'blockWidth'    => null,
+            'positionX'     => 0,
+            'positionY'     => 0,
+            'align'         => self::ALIGN_LEFT,
+            'verticalAlign' => self::VERTICAL_ALIGN_TOP,
         ];
 
         $args     = array_merge($defaults, $args);
@@ -603,20 +568,23 @@ class Image
      */
     protected function _writeText($args = [])
     {
-        $content    = $args['content'];
-        $fontSize   = $args['fontSize'];
-        $fontName   = $args['fontName'];
-        $color      = $args['color'];
-        $lineHeight = $args['lineHeight'];
-        $blockWidth = $args['blockWidth'];
-        $positionX  = $args['positionX'];
-        $positionY  = $args['positionY'];
+
+        $content       = $args['content'];
+        $fontSize      = $args['fontSize'];
+        $fontName      = $args['fontName'];
+        $color         = $args['color'];
+        $lineHeight    = $args['lineHeight'];
+        $blockWidth    = $args['blockWidth'];
+        $positionX     = $args['positionX'];
+        $positionY     = $args['positionY'];
+        $align         = $args['align'];
+        $verticalAlign = $args['verticalAlign'];
 
         $image    = $this->getImage();
         $content  = trim($content);
-        $fontPath = $this->_fontDir . '/' . $fontName;
+        $fontPath = __DIR__ . '/' . $this->_fontDir . '/' . $fontName;
 
-        if (!file_exists($fontPath)) {
+        if (!is_file($fontPath)) {
             throw new Exception("Font file not found \"{$fontPath}\"");
         }
 
@@ -651,9 +619,9 @@ class Image
                     if ($nextWord) {
                         $contentBoxWidth += $spaceSize;
                     }
-                    if ($contentBoxHeight < $wordHeight) {
-                        $contentBoxHeight = $wordHeight;
-                    }
+                    //if ($contentBoxHeight < $wordHeight) {
+                    $contentBoxHeight = $wordHeight;
+                    //}
                 }
                 $contentInfo[] = [
                     'width'  => $wordWidth,
@@ -663,30 +631,51 @@ class Image
             reset($content);
             reset($contentInfo);
 
-
-            $position['x']     = $positionX;
-            $position['y']     = $positionY + $fontSize;
-            $position['width'] = 0;
-
-
-            if ($blockWidth == 'auto') {
-                $width = $contentBoxWidth + $spaceSize;
-                if ($contentBoxHeight > $this->getHeight()) {
-                    $contentBoxHeight += $lineHeight;
-                }
-                $this->resize($width, $contentBoxHeight, 'scale');
+            switch ($align) {
+                case self::ALIGN_LEFT:
+                default:
+                    $position['x'] = $positionX + $spaceSize;
+                    break;
+                case self::ALIGN_RIGHT:
+                    $position['x'] = $this->getWidth() - $contentBoxWidth - $positionX - $spaceSize;
+                    break;
+                case self::ALIGN_CENTER:
+                    $position['x'] = $this->getWidth() / 2 - $contentBoxWidth / 2 - $positionX;
+                    break;
             }
-            //$image = $this->getImage();
+
+            switch ($verticalAlign) {
+                case self::VERTICAL_ALIGN_TOP:
+                default:
+                    $position['y'] = $positionY + $fontSize;
+                    break;
+                case self::VERTICAL_ALIGN_BOTTOM:
+                    $position['y'] = $this->getHeight() - $contentBoxHeight;
+                    break;
+                case self::VERTICAL_ALIGN_MIDDLE:
+                    $position['y'] = $this->getHeight() / 2 - $contentBoxHeight / 2 + $fontSize;
+                    break;
+            }
+
+//            if ($blockWidth == 'auto') {
+//                $width = $contentBoxWidth + $spaceSize;
+//                if ($contentBoxHeight > $this->getHeight()) {
+//                    $contentBoxHeight += $lineHeight;
+//                }
+//                $this->resize($width, $contentBoxHeight, 'scale');
+//            }
+
+            $relativeX = 0;
             while (false !== ($word = current($content)) && false !== ($wordInfo = current($contentInfo))) {
                 next($content);
                 $nextWordInfo = next($contentInfo);
-                imagettftext($image, $fontSize, 0, $position['x'], $position['y'], $color, $fontPath, $word);
-                $position['x'] += $wordInfo['width'];
+                imagettftext($image, $fontSize, 0, $position['x'] + $relativeX, $position['y'], $color, $fontPath, $word);
+                $relativeX += $wordInfo['width'];
                 if ($nextWordInfo) {
-                    $position['x'] += $spaceSize;
+                    $relativeX += $spaceSize;
                 }
-                if (($position['x'] + $nextWordInfo['width']) > $contentBoxWidth) {
-                    $position['x'] = 0;
+                if (($relativeX + $nextWordInfo['width']) > $contentBoxWidth) {
+                    $relativeX = 0;
                     $position['y'] += $nextWordInfo['height'] + $lineHeight;
                 }
             }
@@ -702,8 +691,8 @@ class Image
      */
     public function getImage()
     {
-        if ($this->newImage) {
-            return $this->newImage;
+        if ($this->image) {
+            return $this->image;
         } else {
             return $this->getSourceImage();
         }
@@ -738,10 +727,10 @@ class Image
     public function getSourceImage()
     {
         if (!$this->sourceImage) {
-            if ($this->createEmpty) {
-                $this->_createEmptyImage();
-            } else {
+            if ($this->sourceImagePath) {
                 $this->_openSourceImage();
+            } else {
+                $this->_createEmptyImage();
             }
         }
 
@@ -754,10 +743,10 @@ class Image
     public function getSourceImageType()
     {
         if (!$this->sourceImageType) {
-            if ($this->createEmpty) {
-                $this->_createEmptyImage();
-            } else {
+            if ($this->sourceImagePath) {
                 $this->_openSourceImage();
+            } else {
+                $this->_createEmptyImage();
             }
         }
 
