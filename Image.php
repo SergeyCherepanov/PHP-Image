@@ -298,7 +298,7 @@ class Image
     {
         $filePath = $this->getSourceImagePath();
         if ($filePath && is_file($filePath)) {
-            $this->clear();
+            //$this->clear();
             $imageInfo               = getimagesize($filePath);
             $this->sourceImageWidth  = $imageInfo[0];
             $this->sourceImageHeight = $imageInfo[1];
